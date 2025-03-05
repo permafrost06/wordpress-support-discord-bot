@@ -2,15 +2,13 @@ import requests
 from bs4 import BeautifulSoup
 import time
 
-SUPPORT_URL = "https://wordpress.org/support/plugin/tableberg/"
-
 def get_soup(url):
     """Fetch the page content and return a BeautifulSoup object."""
     response = requests.get(url)
     response.raise_for_status()  # Raise an exception for HTTP errors
     return BeautifulSoup(response.text, "html.parser")
 
-def get_threads():
+def get_threads(SUPPORT_URL):
     soup = get_soup(SUPPORT_URL)
     topic_links = [a["href"] for a in soup.select(".bbp-body .bbp-topic-permalink")]
 
