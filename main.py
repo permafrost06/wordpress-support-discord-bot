@@ -30,6 +30,7 @@ client = discord.Client(intents=intents)
 posted_threads = set()
 
 async def check_threads(product, SUPPORT_URL, CHANNEL_ID, WEBHOOK_URL):
+    # print(f"starting {product}")
     data_filename = f'{product}-data.json'
 
     if not path.exists(data_filename):
@@ -39,7 +40,7 @@ async def check_threads(product, SUPPORT_URL, CHANNEL_ID, WEBHOOK_URL):
     with open(data_filename, 'r') as fp:
         old_threads = json.load(fp)
 
-    print("old file loaded")
+    # print("data file loaded")
 
     thread_links = get_threads(SUPPORT_URL)
     thread_links.reverse()
@@ -48,24 +49,24 @@ async def check_threads(product, SUPPORT_URL, CHANNEL_ID, WEBHOOK_URL):
     
     channel = await client.fetch_channel(CHANNEL_ID)
 
-    print("links received")
+    # print("links received")
     await asyncio.sleep(5)
     for link in thread_links:
-        print("parsing thread")
+        # print("parsing thread")
         thread_details = get_posts(link)
 
         if not link in old_threads.keys():
-            print("creating new thread")
+            # print("creating new thread")
             content = f'[Link to thread](<{link}>)\n\n' + markdownify(thread_details['topic_text'])
             thread = await channel.create_thread(name=thread_details['topic_title'], type=discord.ChannelType.public_thread)
             send_webhook_message_in_thread(thread.id, thread_details['topic_author'], content, WEBHOOK_URL)
         else:
-            print("skipping existing thread")
+            # print("skipping existing thread")
             thread = await client.fetch_channel(old_threads[link]['id'])
 
         thread_details["id"] = thread.id
 
-        print("posting replies")
+        # print("posting replies")
         for reply in thread_details['replies']:
             def match_reply(old_reply):
                 if reply['id'] == old_reply['id']:
@@ -73,21 +74,21 @@ async def check_threads(product, SUPPORT_URL, CHANNEL_ID, WEBHOOK_URL):
 
             if link in old_threads.keys():
                 if len(list(filter(match_reply, old_threads[link]['replies']))) > 0:
-                    print("skipping existing reply")
+                    # print("skipping existing reply")
                     continue
 
-            print("posting new reply")
+            # print("posting new reply")
             username = reply['username'].split("(@")[1].split(")")[0]
             send_webhook_message_in_thread(thread.id, username, markdownify(reply['content']), WEBHOOK_URL)
 
         threads[link] = thread_details
         await asyncio.sleep(5)
 
-    print("dumping new threads data")
+    # print("dumping new threads data")
     with open(data_filename, 'w') as fp:
         json.dump(threads, fp)
 
-    print("all links done. sleeping for 1 minute.")
+    # print("all links done. sleeping for 1 minute.")
 
 def send_webhook_message_in_thread(thread_id, username, content, WEBHOOK_URL):
     url = f"{WEBHOOK_URL}?thread_id={thread_id}"
@@ -106,7 +107,7 @@ async def main_loop():
         await check_threads("ub", ub_support_url, ub_channel, ub_webhook)
         await asyncio.sleep(60)
         await check_threads("wptb", wptb_support_url, wptb_channel, wptb_webhook)
-        print("all products done. sleeping for 10 minutes.")
+        # print("all products done. sleeping for 10 minutes.")
         await asyncio.sleep(60*10)
 
 @client.event
