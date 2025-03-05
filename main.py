@@ -1,12 +1,12 @@
 import discord
 import requests
 import asyncio
-from os import getenv
+import json
+from os import getenv, path
 from bs4 import BeautifulSoup
 from dotenv import load_dotenv
 from wp import get_threads, get_posts
 from markdownify import markdownify
-import json
 
 load_dotenv()
 
@@ -20,17 +20,23 @@ client = discord.Client(intents=intents)
 # Store posted topics to avoid duplicates
 posted_threads = set()
 
+if not path.exists('data.json'):
+    with open('data.json', 'w') as file:
+        file.write('{}')
+
 async def check_threads():
     """Periodically check for new threads and post them in Discord."""
     await client.wait_until_ready()
     channel = await client.fetch_channel(CHANNEL_ID)
     
     while not client.is_closed():
-        thread_links = get_threads()
-        thread_links.reverse()
-
         with open('data.json', 'r') as fp:
             old_threads = json.load(fp)
+
+        print("old file loaded")
+
+        thread_links = get_threads()
+        thread_links.reverse()
 
         threads = {}
         
