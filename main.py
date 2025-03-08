@@ -7,8 +7,14 @@ from bs4 import BeautifulSoup
 from dotenv import load_dotenv
 from wp import get_threads, get_posts
 from markdownify import markdownify
+import argparse
 
 load_dotenv()
+
+parser = argparse.ArgumentParser()
+parser.add_argument('--dry-run', action='store_true', help='Perform a dry run without making changes')
+
+args = parser.parse_args()
 
 TOKEN = getenv("WP_BOT_TOKEN")
 
@@ -50,45 +56,61 @@ async def check_threads(product, SUPPORT_URL, CHANNEL_ID, WEBHOOK_URL):
     channel = await client.fetch_channel(CHANNEL_ID)
 
     # print("links received")
-    await asyncio.sleep(5)
-    for link in thread_links:
+    await asyncio.sleep(30)
+    for thread_obj in thread_links:
+        link = thread_obj["link"]
+        last_updated = thread_obj["last_updated"]
+
+        if link in old_threads.keys():
+            if "last_updated" in old_threads[link]:
+                if old_threads[link]["last_updated"] == last_updated:
+                    # print("thread hasn't updated")
+                    continue
+
         # print("parsing thread")
         thread_details = get_posts(link)
 
         if not link in old_threads.keys():
-            # print("creating new thread")
             content = f'[Link to thread](<{link}>)\n\n' + markdownify(thread_details['topic_text'])
-            thread = await channel.create_thread(name=thread_details['topic_title'], type=discord.ChannelType.public_thread)
-            send_webhook_message_in_thread(thread.id, thread_details['topic_author'], content, WEBHOOK_URL)
+            if not args.dry_run:
+                # print("creating new thread")
+                thread = await channel.create_thread(name=thread_details['topic_title'], type=discord.ChannelType.public_thread)
+                send_webhook_message_in_thread(thread.id, thread_details['topic_author'], content, WEBHOOK_URL)
+            else:
+                print(f"create thread:")
+                print(f"name: {thread_details['topic_title']}")
+                print(f"author: {thread_details['topic_author']}, content: {content[0:100]}")
         else:
             # print("skipping existing thread")
             thread = await client.fetch_channel(old_threads[link]['id'])
 
-        thread_details["id"] = thread.id
+        if not args.dry_run:
+            thread_details["id"] = thread.id
 
         # print("posting replies")
-        for reply in thread_details['replies']:
-            def match_reply(old_reply):
-                if reply['id'] == old_reply['id']:
-                    return True
+        for reply_id in thread_details['replies']:
+            reply = thread_details['replies'][reply_id]
 
             if link in old_threads.keys():
-                if len(list(filter(match_reply, old_threads[link]['replies']))) > 0:
-                    # print("skipping existing reply")
+                if reply_id in old_threads[link]['replies']:
                     continue
 
             # print("posting new reply")
             username = reply['username'].split("(@")[1].split(")")[0]
-            send_webhook_message_in_thread(thread.id, username, markdownify(reply['content']), WEBHOOK_URL)
+            if not args.dry_run:
+                send_webhook_message_in_thread(thread.id, username, markdownify(reply['content']), WEBHOOK_URL)
+            else:
+                print(f"create reply {reply_id}:")
+                print(f"author: {username}, content: {markdownify(reply['content'][0:100])}")
 
+        thread_details["last_updated"] = last_updated
         threads[link] = thread_details
-        await asyncio.sleep(5)
+        await asyncio.sleep(60)
 
     # print("dumping new threads data")
-    with open(data_filename, 'w') as fp:
-        json.dump(threads, fp)
-
-    # print("all links done. sleeping for 1 minute.")
+    if not args.dry_run:
+        with open(data_filename, 'w') as fp:
+            json.dump(threads, fp)
 
 def send_webhook_message_in_thread(thread_id, username, content, WEBHOOK_URL):
     url = f"{WEBHOOK_URL}?thread_id={thread_id}"
@@ -107,8 +129,7 @@ async def main_loop():
         await check_threads("ub", ub_support_url, ub_channel, ub_webhook)
         await asyncio.sleep(60)
         await check_threads("wptb", wptb_support_url, wptb_channel, wptb_webhook)
-        # print("all products done. sleeping for 10 minutes.")
-        await asyncio.sleep(60*10)
+        await asyncio.sleep(60)
 
 @client.event
 async def on_ready():

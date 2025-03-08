@@ -10,12 +10,17 @@ def get_soup(url):
 
 def get_threads(SUPPORT_URL):
     soup = get_soup(SUPPORT_URL)
-    topic_links = [a["href"] for a in soup.select(".bbp-body .bbp-topic-permalink")]
+    topics_soup = soup.select(".bbp-body .topic")
 
-    if not topic_links:
-        return []
+    topics = []
 
-    return topic_links
+    for topic_soup in topics_soup:
+        topics.append({
+            "link": topic_soup.select_one(".bbp-topic-permalink")["href"],
+            "last_updated": topic_soup.select_one(".bbp-topic-freshness").select_one("a")["title"]
+        })
+
+    return topics
 
 def get_posts(topic_url):
     topic_soup = get_soup(topic_url)
@@ -26,18 +31,17 @@ def get_posts(topic_url):
     topic_author = topic_soup.select_one(".bbp-lead-topic .bbp-author-name").get_text(strip=True)
     topic_text = topic_soup.select_one(".bbp-topic-content").decode_contents()
 
-    replies = []
+    replies = {}
     for reply in topic_soup.select(".bbp-replies .reply"):
         reply_id = reply.get("id").split("post-")[1]
         reply_author = reply.select_one(".bbp-author-name").get_text(strip=True)
         reply_username = reply.select_one(".bbp-user-nicename").get_text(strip=True)
         reply_content = reply.select_one(".bbp-reply-content").decode_contents()
-        replies.append({
-            "id": reply_id,
+        replies[reply_id] = {
             "author": reply_author,
             "username": reply_username,
             "content": reply_content
-        })
+        }
 
     return {
         'topic_title': topic_title,
