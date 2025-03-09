@@ -13,6 +13,7 @@ load_dotenv()
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--dry-run', action='store_true', help='Perform a dry run without making changes')
+parser.add_argument('--verbose', action='store_true', help='Print logging')
 
 args = parser.parse_args()
 
@@ -36,7 +37,8 @@ client = discord.Client(intents=intents)
 posted_threads = set()
 
 async def check_threads(product, SUPPORT_URL, CHANNEL_ID, WEBHOOK_URL):
-    # print(f"starting {product}")
+    if args.verbose:
+        print(f"starting {product}")
     data_filename = f'{product}-data.json'
 
     if not path.exists(data_filename):
@@ -46,7 +48,8 @@ async def check_threads(product, SUPPORT_URL, CHANNEL_ID, WEBHOOK_URL):
     with open(data_filename, 'r') as fp:
         old_threads = json.load(fp)
 
-    # print("data file loaded")
+    if args.verbose:
+        print("data file loaded")
 
     thread_links = get_threads(SUPPORT_URL)
     thread_links.reverse()
@@ -55,7 +58,8 @@ async def check_threads(product, SUPPORT_URL, CHANNEL_ID, WEBHOOK_URL):
     
     channel = await client.fetch_channel(CHANNEL_ID)
 
-    # print("links received")
+    if args.verbose:
+        print("links received")
     await asyncio.sleep(30)
     for thread_obj in thread_links:
         link = thread_obj["link"]
@@ -64,16 +68,19 @@ async def check_threads(product, SUPPORT_URL, CHANNEL_ID, WEBHOOK_URL):
         if link in old_threads.keys():
             if "last_updated" in old_threads[link]:
                 if old_threads[link]["last_updated"] == last_updated:
-                    # print("thread hasn't updated")
+                    if args.verbose:
+                        print("thread hasn't updated")
                     continue
 
-        # print("parsing thread")
+        if args.verbose:
+            print("parsing thread")
         thread_details = get_posts(link)
 
         if not link in old_threads.keys():
             content = f'[Link to thread](<{link}>)\n\n' + markdownify(thread_details['topic_text'])
             if not args.dry_run:
-                # print("creating new thread")
+                if args.verbose:
+                    print("creating new thread")
                 thread = await channel.create_thread(name=thread_details['topic_title'], type=discord.ChannelType.public_thread)
                 send_webhook_message_in_thread(thread.id, thread_details['topic_author'], content, WEBHOOK_URL)
             else:
@@ -81,13 +88,15 @@ async def check_threads(product, SUPPORT_URL, CHANNEL_ID, WEBHOOK_URL):
                 print(f"name: {thread_details['topic_title']}")
                 print(f"author: {thread_details['topic_author']}, content: {content[0:100]}")
         else:
-            # print("skipping existing thread")
+            if args.verbose:
+                print("skipping existing thread")
             thread = await client.fetch_channel(old_threads[link]['id'])
 
         if not args.dry_run:
             thread_details["id"] = thread.id
 
-        # print("posting replies")
+        if args.verbose:
+            print("posting replies")
         for reply_id in thread_details['replies']:
             reply = thread_details['replies'][reply_id]
 
@@ -95,7 +104,8 @@ async def check_threads(product, SUPPORT_URL, CHANNEL_ID, WEBHOOK_URL):
                 if reply_id in old_threads[link]['replies']:
                     continue
 
-            # print("posting new reply")
+            if args.verbose:
+                print("posting new reply")
             username = reply['username'].split("(@")[1].split(")")[0]
             if not args.dry_run:
                 send_webhook_message_in_thread(thread.id, username, markdownify(reply['content']), WEBHOOK_URL)
@@ -107,7 +117,8 @@ async def check_threads(product, SUPPORT_URL, CHANNEL_ID, WEBHOOK_URL):
         threads[link] = thread_details
         await asyncio.sleep(60)
 
-    # print("dumping new threads data")
+    if args.verbose:
+        print("dumping new threads data")
     if not args.dry_run:
         with open(data_filename, 'w') as fp:
             json.dump(threads, fp)
