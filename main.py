@@ -7,6 +7,7 @@ from bs4 import BeautifulSoup
 from dotenv import load_dotenv
 from wp import get_threads, get_posts
 from markdownify import markdownify
+from math import floor
 import argparse
 
 load_dotenv()
@@ -60,7 +61,7 @@ async def check_threads(product, SUPPORT_URL, CHANNEL_ID, WEBHOOK_URL):
 
     if args.verbose:
         print("links received")
-    await asyncio.sleep(30)
+    await sleep(30)
     for thread_obj in thread_links:
         link = thread_obj["link"]
         last_updated = thread_obj["last_updated"]
@@ -115,7 +116,7 @@ async def check_threads(product, SUPPORT_URL, CHANNEL_ID, WEBHOOK_URL):
 
         thread_details["last_updated"] = last_updated
         threads[link] = thread_details
-        await asyncio.sleep(60)
+        await sleep(60)
 
     if args.verbose:
         print("dumping new threads data")
@@ -136,11 +137,19 @@ async def main_loop():
     
     while not client.is_closed():
         await check_threads("tableberg", tableberg_support_url, tableberg_channel, tableberg_webhook)
-        await asyncio.sleep(60)
+        await sleep(60)
         await check_threads("ub", ub_support_url, ub_channel, ub_webhook)
-        await asyncio.sleep(60)
+        await sleep(60)
         await check_threads("wptb", wptb_support_url, wptb_channel, wptb_webhook)
-        await asyncio.sleep(60)
+        await sleep(60)
+
+async def sleep(seconds):
+    for i in reversed(range(seconds)):
+        if args.verbose:
+            print(f"sleeping for {i+1} seconds", end="", flush=True)
+        await asyncio.sleep(1)
+        if args.verbose:
+            print("\x1b[2K\x1b[0G", end="", flush=True)
 
 @client.event
 async def on_ready():
