@@ -1,6 +1,7 @@
 import discord
 import requests
 import asyncio
+import aiofiles
 import json
 import requests
 from os import getenv, path
@@ -46,11 +47,12 @@ async def check_threads(product, SUPPORT_URL, CHANNEL_ID, WEBHOOK_URL):
     data_filename = f'{product}-data.json'
 
     if not path.exists(data_filename):
-        with open(data_filename, 'w') as file:
-            file.write('{}')
+        async with aiofiles.open(data_filename, 'w') as file:
+            await file.write('{}')
 
-    with open(data_filename, 'r') as fp:
-        old_threads = json.load(fp)
+    async with aiofiles.open(data_filename, 'r') as fp:
+        content = await fp.read()
+        old_threads = json.loads(content)
 
     if args.verbose:
         print("data file loaded")
@@ -135,8 +137,8 @@ async def check_threads(product, SUPPORT_URL, CHANNEL_ID, WEBHOOK_URL):
     if args.verbose:
         print("dumping new threads data")
     if not args.dry_run:
-        with open(data_filename, 'w') as fp:
-            json.dump(threads, fp)
+        async with aiofiles.open(data_filename, 'w') as fp:
+            await fp.write(json.dumps(threads))
 
 def send_webhook_message_in_thread(thread_id, username, content, WEBHOOK_URL):
     url = f"{WEBHOOK_URL}?thread_id={thread_id}"
