@@ -77,6 +77,7 @@ async def check_threads(product, SUPPORT_URL, CHANNEL_ID, WEBHOOK_URL):
         last_updated = thread_obj["last_updated"]
 
         if link in old_threads.keys():
+            threads[link] = old_threads[link]
             if "last_updated" in old_threads[link]:
                 if old_threads[link]["last_updated"] == last_updated:
                     if args.verbose:
