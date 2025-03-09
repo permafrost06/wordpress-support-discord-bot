@@ -2,6 +2,7 @@ import discord
 import requests
 import asyncio
 import json
+import requests
 from os import getenv, path
 from bs4 import BeautifulSoup
 from dotenv import load_dotenv
@@ -17,6 +18,8 @@ parser.add_argument('--dry-run', action='store_true', help='Perform a dry run wi
 parser.add_argument('--verbose', action='store_true', help='Print logging')
 
 args = parser.parse_args()
+
+sleep_interval = 30
 
 TOKEN = getenv("WP_BOT_TOKEN")
 
@@ -52,7 +55,12 @@ async def check_threads(product, SUPPORT_URL, CHANNEL_ID, WEBHOOK_URL):
     if args.verbose:
         print("data file loaded")
 
-    thread_links = get_threads(SUPPORT_URL)
+    try:
+        thread_links = get_threads(SUPPORT_URL)
+    except requests.exceptions.RequestException as e:
+        print(f'Error retrieving support threads: {e}')
+        return
+
     thread_links.reverse()
 
     threads = {}
@@ -61,7 +69,7 @@ async def check_threads(product, SUPPORT_URL, CHANNEL_ID, WEBHOOK_URL):
 
     if args.verbose:
         print("links received")
-    await sleep(30)
+    await sleep(sleep_interval)
     for thread_obj in thread_links:
         link = thread_obj["link"]
         last_updated = thread_obj["last_updated"]
@@ -75,7 +83,13 @@ async def check_threads(product, SUPPORT_URL, CHANNEL_ID, WEBHOOK_URL):
 
         if args.verbose:
             print("parsing thread")
-        thread_details = get_posts(link)
+
+        try:
+            thread_details = get_posts(link)
+        except requests.exceptions.RequestException as e:
+            print(f'Error retrieving replies: {e}')
+            await sleep(sleep_interval)
+            continue
 
         if not link in old_threads.keys():
             content = f'[Link to thread](<{link}>)\n\n' + markdownify(thread_details['topic_text'])
@@ -116,7 +130,7 @@ async def check_threads(product, SUPPORT_URL, CHANNEL_ID, WEBHOOK_URL):
 
         thread_details["last_updated"] = last_updated
         threads[link] = thread_details
-        await sleep(60)
+        await sleep(sleep_interval)
 
     if args.verbose:
         print("dumping new threads data")
@@ -137,11 +151,11 @@ async def main_loop():
     
     while not client.is_closed():
         await check_threads("tableberg", tableberg_support_url, tableberg_channel, tableberg_webhook)
-        await sleep(60)
+        await sleep(sleep_interval)
         await check_threads("ub", ub_support_url, ub_channel, ub_webhook)
-        await sleep(60)
+        await sleep(sleep_interval)
         await check_threads("wptb", wptb_support_url, wptb_channel, wptb_webhook)
-        await sleep(60)
+        await sleep(sleep_interval)
 
 async def sleep(seconds):
     for i in reversed(range(seconds)):
